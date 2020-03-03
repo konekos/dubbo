@@ -89,16 +89,19 @@ public class ClassUtils {
     public static ClassLoader getClassLoader(Class<?> clazz) {
         ClassLoader cl = null;
         try {
+            // 先使用线程上下文类加载器
             cl = Thread.currentThread().getContextClassLoader();
         } catch (Throwable ex) {
             // Cannot access thread context ClassLoader - falling back to system class loader...
         }
         if (cl == null) {
             // No thread context class loader -> use class loader of this class.
+            // 使用 clazz（扩展点这里就是 ExtensionLoader）的 class loader，其实就是 app class loader
             cl = clazz.getClassLoader();
             if (cl == null) {
                 // getClassLoader() returning null indicates the bootstrap ClassLoader
                 try {
+                    // 如果上面的方法还是返回null，说明没有加载 ExtensionLoader，返回的是 bootstrap ClassLoader
                     cl = ClassLoader.getSystemClassLoader();
                 } catch (Throwable ex) {
                     // Cannot access system ClassLoader - oh well, maybe the caller can live with null...
