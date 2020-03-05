@@ -80,12 +80,17 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
 
     @SuppressWarnings("unchecked")
     private static BeanDefinition parse(Element element, ParserContext parserContext, Class<?> beanClass, boolean required) {
+        // 该方法目的是生成 beanDefinition，然后注册到 Spring 容器，所以先创建 Spring 的 beanDefinition 实例
         RootBeanDefinition beanDefinition = new RootBeanDefinition();
         beanDefinition.setBeanClass(beanClass);
         beanDefinition.setLazyInit(false);
+        // 获取 id 标签的值
         String id = element.getAttribute("id");
+        // id 标签为空
         if (StringUtils.isEmpty(id) && required) {
+            // 获取 name 标签的值
             String generatedBeanName = element.getAttribute("name");
+            // 如果 name 标签为空的话, 如果构造器里的 beanClass 是 ProtocolConfig，则默认使用 dubbo 协议，否则设置 interface 标签的值
             if (StringUtils.isEmpty(generatedBeanName)) {
                 if (ProtocolConfig.class.equals(beanClass)) {
                     generatedBeanName = "dubbo";
@@ -93,23 +98,33 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                     generatedBeanName = element.getAttribute("interface");
                 }
             }
+            // 说明 interface 标签也没有，使用类名
             if (StringUtils.isEmpty(generatedBeanName)) {
                 generatedBeanName = beanClass.getName();
             }
+            // 赋值给 id，使用id 在 Spring 注册
             id = generatedBeanName;
+            // 从Spring 容器查找同名bean，如果有同名的，加数字防重复
             int counter = 2;
             while (parserContext.getRegistry().containsBeanDefinition(id)) {
                 id = generatedBeanName + (counter++);
             }
         }
+        // id 标签的值不是空
         if (StringUtils.isNotEmpty(id)) {
+            // 有同名的bean 直接抛出重复 bean 异常
             if (parserContext.getRegistry().containsBeanDefinition(id)) {
                 throw new IllegalStateException("Duplicate spring bean id " + id);
             }
+            // 直接注册 bean 定义到 Spring 容器
             parserContext.getRegistry().registerBeanDefinition(id, beanDefinition);
+            // 设置bean定义的 id 值
             beanDefinition.getPropertyValues().addPropertyValue("id", id);
         }
+        // 构造器里是 ProtocolConfig，也就是注册 protocol 的 config bean
         if (ProtocolConfig.class.equals(beanClass)) {
+            // 这一段逻辑是遍历 Spring 里的 bean，找到 Protocol 相关的bean，根据传入的 id 值，注入对应的 protocol bean
+            // 这里使用的是 RuntimeBeanReference，因为对应的 protocol bean 还没有准备好。
             for (String name : parserContext.getRegistry().getBeanDefinitionNames()) {
                 BeanDefinition definition = parserContext.getRegistry().getBeanDefinition(name);
                 PropertyValue property = definition.getPropertyValues().getPropertyValue("protocol");
@@ -120,23 +135,34 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                     }
                 }
             }
+            // 构造器里是 ServiceBean，Service 即用户编写的服务
         } else if (ServiceBean.class.equals(beanClass)) {
+            // 获取 标签里 class 的值
             String className = element.getAttribute("class");
             if (StringUtils.isNotEmpty(className)) {
                 RootBeanDefinition classDefinition = new RootBeanDefinition();
+                // 反射获取类
                 classDefinition.setBeanClass(ReflectUtils.forName(className));
                 classDefinition.setLazyInit(false);
+                // 解析标签中的属性
                 parseProperties(element.getChildNodes(), classDefinition);
+                // 添加 ref 属性，值为 bean id + Impl
                 beanDefinition.getPropertyValues().addPropertyValue("ref", new BeanDefinitionHolder(classDefinition, id + "Impl"));
             }
+            // ProviderConfig 和 ConsumerConfig，要处理嵌套标签，因为 <dubbo:provider> 这样的标签里面是会有 <dubbo:service> 的
+            // 嵌套标签的内部对象会自动持有外部标签的对象，比如解析 service 生成 bean 时，会把 provider 注入进去。
         } else if (ProviderConfig.class.equals(beanClass)) {
             parseNested(element, parserContext, ServiceBean.class, true, "service", "provider", id, beanDefinition);
         } else if (ConsumerConfig.class.equals(beanClass)) {
             parseNested(element, parserContext, ReferenceBean.class, false, "reference", "consumer", id, beanDefinition);
         }
+
+        // 以下代码为标签属性值的解析
         Set<String> props = new HashSet<>();
         ManagedMap parameters = null;
+        // 遍历目标 Config 类的所有方法
         for (Method setter : beanClass.getMethods()) {
+            // 这里是提取全部有 setter 的属性 如 setTimeout 则得到 timeout
             String name = setter.getName();
             if (name.length() > 3 && name.startsWith("set")
                     && Modifier.isPublic(setter.getModifiers())
@@ -162,6 +188,9 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                         || !type.equals(getter.getReturnType())) {
                     continue;
                 }
+
+                // 以下就是把属性标签的值注入到 bean 中了
+
                 if ("parameters".equals(property)) {
                     parameters = parseParameters(element.getChildNodes(), beanDefinition);
                 } else if ("methods".equals(property)) {

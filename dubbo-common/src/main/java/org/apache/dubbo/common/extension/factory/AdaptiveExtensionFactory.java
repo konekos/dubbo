@@ -33,8 +33,10 @@ public class AdaptiveExtensionFactory implements ExtensionFactory {
     private final List<ExtensionFactory> factories;
 
     public AdaptiveExtensionFactory() {
+        // 加载所有扩展点
         ExtensionLoader<ExtensionFactory> loader = ExtensionLoader.getExtensionLoader(ExtensionFactory.class);
         List<ExtensionFactory> list = new ArrayList<ExtensionFactory>();
+        // 添加所有 ExtensionFactory 的扩展类实例
         for (String name : loader.getSupportedExtensions()) {
             list.add(loader.getExtension(name));
         }

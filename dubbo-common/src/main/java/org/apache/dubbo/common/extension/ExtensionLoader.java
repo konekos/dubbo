@@ -228,13 +228,15 @@ public class ExtensionLoader<T> {
         List<T> exts = new ArrayList<>();
         List<String> names = values == null ? new ArrayList<>(0) : Arrays.asList(values);
         if (!names.contains(REMOVE_VALUE_PREFIX + DEFAULT_KEY)) {
+            // 加载所有扩展点（先缓存获取）
             getExtensionClasses();
+            // 遍历 cachedActivates 缓存
             for (Map.Entry<String, Object> entry : cachedActivates.entrySet()) {
                 String name = entry.getKey();
                 Object activate = entry.getValue();
 
                 String[] activateGroup, activateValue;
-
+                // 必须要有 Activate 注解
                 if (activate instanceof Activate) {
                     activateGroup = ((Activate) activate).group();
                     activateValue = ((Activate) activate).value();
@@ -244,6 +246,7 @@ public class ExtensionLoader<T> {
                 } else {
                     continue;
                 }
+                // 匹配 name 和 group，通过getExtension 获取实例后添加到 exts
                 if (isMatchGroup(group, activateGroup)
                         && !names.contains(name)
                         && !names.contains(REMOVE_VALUE_PREFIX + name)
@@ -251,8 +254,11 @@ public class ExtensionLoader<T> {
                     exts.add(getExtension(name));
                 }
             }
+            // 排序
             exts.sort(ActivateComparator.COMPARATOR);
         }
+        // URL 如果传入 -default，所有默认的 @Activate 都不被激活，只有 URL 指定的被激活
+        // 如果传入了 -开头的扩展点名，则该扩展点也不会激活
         List<T> usrs = new ArrayList<>();
         for (int i = 0; i < names.size(); i++) {
             String name = names.get(i);
@@ -989,6 +995,7 @@ public class ExtensionLoader<T> {
 
     private Class<?> createAdaptiveExtensionClass() {
         String code = new AdaptiveClassCodeGenerator(type, cachedDefaultName).generate();
+        System.out.println(code);
         // 获取 classloader
         ClassLoader classLoader = findClassLoader();
         // 使用自适应的 compiler
