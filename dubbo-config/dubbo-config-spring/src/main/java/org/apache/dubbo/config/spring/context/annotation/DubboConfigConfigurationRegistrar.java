@@ -47,10 +47,10 @@ public class DubboConfigConfigurationRegistrar implements ImportBeanDefinitionRe
                 importingClassMetadata.getAnnotationAttributes(EnableDubboConfig.class.getName()));
 
         boolean multiple = attributes.getBoolean("multiple");
-
+        // 单一配置绑定
         // Single Config Bindings
         registerBeans(registry, DubboConfigConfiguration.Single.class);
-
+        // 外部化配置绑定 see https://mercyblitz.github.io/2018/01/18/Dubbo-%E5%A4%96%E9%83%A8%E5%8C%96%E9%85%8D%E7%BD%AE/
         if (multiple) { // Since 2.6.6 https://github.com/apache/dubbo/issues/3193
             registerBeans(registry, DubboConfigConfiguration.Multiple.class);
         }
