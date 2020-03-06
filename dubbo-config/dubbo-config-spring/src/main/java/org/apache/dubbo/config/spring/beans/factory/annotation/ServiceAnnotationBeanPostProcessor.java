@@ -111,9 +111,9 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
 
         // @since 2.7.5
         registerBeans(registry, DubboBootstrapApplicationListener.class);
-
+        // 获取用户配置的包扫描
         Set<String> resolvedPackagesToScan = resolvePackagesToScan(packagesToScan);
-
+        // 触发 ServiceBean 的 定义和注入
         if (!CollectionUtils.isEmpty(resolvedPackagesToScan)) {
             registerServiceBeans(resolvedPackagesToScan, registry);
         } else {
@@ -132,14 +132,14 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
      * @param registry       {@link BeanDefinitionRegistry}
      */
     private void registerServiceBeans(Set<String> packagesToScan, BeanDefinitionRegistry registry) {
-
+        // 创建 Scanner
         DubboClassPathBeanDefinitionScanner scanner =
                 new DubboClassPathBeanDefinitionScanner(registry, environment, resourceLoader);
-
+        // 创建和设置 beanNameGenerator
         BeanNameGenerator beanNameGenerator = resolveBeanNameGenerator(registry);
 
         scanner.setBeanNameGenerator(beanNameGenerator);
-
+        // 指定扫描 Dubbo 的 @Service（apache 为包名）
         scanner.addIncludeFilter(new AnnotationTypeFilter(Service.class));
 
         /**
@@ -148,19 +148,21 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
          * The issue : https://github.com/apache/dubbo/issues/4330
          * @since 2.7.3
          */
+        // 指定扫描 Dubbo 的 @Service（兼容之前的 alibaba 的包名）
         scanner.addIncludeFilter(new AnnotationTypeFilter(com.alibaba.dubbo.config.annotation.Service.class));
 
         for (String packageToScan : packagesToScan) {
-
+            // 将 @Service 作为不同 bean 注入容器，这里没有设置 beanClass
             // Registers @Service Bean first
             scanner.scan(packageToScan);
 
             // Finds all BeanDefinitionHolders of @Service whether @ComponentScan scans or not.
+            // 获取所有 @Service 的 BeanDefinitionHolder，用于生成 ServiceBean 定义，用于最后的属性注入逻辑
             Set<BeanDefinitionHolder> beanDefinitionHolders =
                     findServiceBeanDefinitionHolders(scanner, packageToScan, registry, beanNameGenerator);
 
             if (!CollectionUtils.isEmpty(beanDefinitionHolders)) {
-
+                // 生成新的 RootBeanDefinition，注册 ServiceBean 定义并做数据绑定和解析，用于 Spring 启动后的服务暴露
                 for (BeanDefinitionHolder beanDefinitionHolder : beanDefinitionHolders) {
                     registerServiceBean(beanDefinitionHolder, registry, scanner);
                 }
