@@ -68,7 +68,7 @@ public class ReferenceAnnotationBeanPostProcessor extends AbstractAnnotationBean
      * Cache size
      */
     private static final int CACHE_SIZE = Integer.getInteger(BEAN_NAME + ".cache.size", 32);
-
+    // 可以发现这里对引用 Bean 做了缓存
     private final ConcurrentMap<String, ReferenceBean<?>> referenceBeanCache =
             new ConcurrentHashMap<>(CACHE_SIZE);
 
@@ -119,26 +119,27 @@ public class ReferenceAnnotationBeanPostProcessor extends AbstractAnnotationBean
     public Map<InjectionMetadata.InjectedElement, ReferenceBean<?>> getInjectedMethodReferenceBeanMap() {
         return Collections.unmodifiableMap(injectedMethodReferenceBeanCache);
     }
-
+    // 这个方法就是 @Reference 注解的类要执行的方法
     @Override
     protected Object doGetInjectedBean(AnnotationAttributes attributes, Object bean, String beanName, Class<?> injectedType,
                                        InjectionMetadata.InjectedElement injectedElement) throws Exception {
         /**
          * The name of bean that annotated Dubbo's {@link Service @Service} in local Spring {@link ApplicationContext}
          */
+        // 获取 本地 Spring 中 @Reference 要引用的 bean name，即 @Service 方的 bean name
         String referencedBeanName = buildReferencedBeanName(attributes, injectedType);
-
+        // 获取 Reference 注解的 bean name
         /**
          * The name of bean that is declared by {@link Reference @Reference} annotation injection
          */
         String referenceBeanName = getReferenceBeanName(attributes, injectedType);
-
+        // 如果没有 ReferenceBean 则创建，ReferenceBean 是 Dubbo  里的类，是一个 Dubbo 实现的用于 Reference 的 FactoryBean
         ReferenceBean referenceBean = buildReferenceBeanIfAbsent(referenceBeanName, attributes, injectedType);
-
+        // 注册 ReferenceBean
         registerReferenceBean(referencedBeanName, referenceBean, attributes, injectedType);
-
+        // 缓存注入后的 ReferenceBean
         cacheInjectedReferenceBean(referenceBean, injectedElement);
-
+        // 返回代理类
         return getOrCreateProxy(referencedBeanName, referenceBeanName, referenceBean, injectedType);
     }
 
@@ -158,7 +159,7 @@ public class ReferenceAnnotationBeanPostProcessor extends AbstractAnnotationBean
         ConfigurableListableBeanFactory beanFactory = getBeanFactory();
 
         String beanName = getReferenceBeanName(attributes, interfaceClass);
-
+        // 查找要引用的ServiceBean，如果要引用的 Service Bean 是本地的，则获取 RuntimeBeanReference 的 serviceBeanName，并注册 Alias，没有注册新bean，为了减少重复 beans。
         if (existsServiceBean(referencedBeanName)) { // If @Service bean is local one
             /**
              * Get  the @Service's BeanDefinition from {@link BeanFactory}
@@ -170,6 +171,7 @@ public class ReferenceAnnotationBeanPostProcessor extends AbstractAnnotationBean
             String serviceBeanName = runtimeBeanReference.getBeanName();
             // register Alias rather than a new bean name, in order to reduce duplicated beans
             beanFactory.registerAlias(serviceBeanName, beanName);
+            // 如果当前 BeanFactory 找不到的话，说明要引用的 Service Bean 是远程的，则注册一个单例的 Bean
         } else { // Remote @Service Bean
             if (!beanFactory.containsBean(beanName)) {
                 beanFactory.registerSingleton(beanName, referenceBean);
@@ -238,6 +240,7 @@ public class ReferenceAnnotationBeanPostProcessor extends AbstractAnnotationBean
      * @since 2.7.4
      */
     private Object getOrCreateProxy(String referencedBeanName, String referenceBeanName, ReferenceBean referenceBean, Class<?> serviceInterfaceType) {
+        // 如果要引用的 @Service是本地的，则使用本地 Spring 里的 Reference，创建一个代理实例，调用@Reference接口方法的时候，执行 ReferenceBean 实例的目标方法
         if (existsServiceBean(referencedBeanName)) { // If the local @Service Bean exists, build a proxy of ReferenceBean
             return newProxyInstance(getClassLoader(), new Class[]{serviceInterfaceType},
                     wrapInvocationHandler(referenceBeanName, referenceBean));
@@ -246,6 +249,7 @@ public class ReferenceAnnotationBeanPostProcessor extends AbstractAnnotationBean
              * TODO, if we can make sure this happens after {@link DubboLifecycleComponentApplicationListener},
              * TODO, then we can avoid starting bootstrap in here, because bootstrap should has been started.
              */
+            // 说明是远程的，调用 ReferenceBean 的 get 方法，获取远程 Service 的代理实例
             return referenceBean.get();
         }
     }
