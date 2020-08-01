@@ -25,6 +25,7 @@ import org.apache.dubbo.demo.DemoService;
 import org.apache.dubbo.rpc.service.GenericService;
 
 public class Application {
+    // test
     public static void main(String[] args) {
         if (isClassic(args)) {
             runWithRefer();
