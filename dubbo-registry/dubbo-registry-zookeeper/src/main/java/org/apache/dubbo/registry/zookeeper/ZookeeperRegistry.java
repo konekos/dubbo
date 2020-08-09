@@ -126,6 +126,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     public void doRegister(URL url) {
         try {
+            // 将生成的 url 写入 zk
             zkClient.create(toUrlPath(url), url.getParameter(DYNAMIC_KEY, true));
         } catch (Throwable e) {
             throw new RpcException("Failed to register " + url + " to zookeeper " + getUrl() + ", cause: " + e.getMessage(), e);
@@ -135,12 +136,16 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     public void doUnregister(URL url) {
         try {
+            // 取消发布 直接删除 url
             zkClient.delete(toUrlPath(url));
         } catch (Throwable e) {
             throw new RpcException("Failed to unregister " + url + " to zookeeper " + getUrl() + ", cause: " + e.getMessage(), e);
         }
     }
-
+    // dubbo 使用的订阅方式是第一次启动拉取方式，后续接收事件重新拉取数据
+    // provider 启动时，会订阅 configurators 监听订台配置
+    // consumer 启动时，会订阅 provider、routers、configurators 3个目录
+    // 默认使用 curator 客户端 zk客户端。
     @Override
     public void doSubscribe(final URL url, final NotifyListener listener) {
         try {
